@@ -1,4 +1,6 @@
 #!/usr/bin/perl -w
+#use warnings;
+#use strict;
 
 =TODO
 Add more support for linux
@@ -8,7 +10,7 @@ Add support for printing out MFT mac times on Windows
 Add option to not overwrite log with another switch perhaps
 =cut
 
-#all the use things
+#Modules
 use Time::localtime;
 
 #Global Variables
@@ -24,43 +26,48 @@ my $dontuse = "";
 my $windows = "";
 
 #Variables for Linux
+# - none yet -
 
-
-#OS Detecting Area
+#OS Detection Code
 if ($^O eq "MSWin32"){
 	$windows = "yes";
+} elsif ($^O eq "cygwin"){
+	#Contians Junctions, requires no atm
+	$windows = "no";
+} else {
+	#Default Action?
 }
 
-#START QUICK TESTING AREA
+#START QUICK TESTING AREA=============
 
 
 
 #exit
-#END TESTING AREA
+#END TESTING AREA=====================
 
 
 
 #Command line input parsing
-#if there are less than 2, eactly 3 or more than 4 arguments, or the first argument is not -i which is required just print help and exit.
-#-h will also be caught by the less than two args so no need for explicit definition
-#may need to add extra arg slot for windows vs linux ctime record information clarification
+#Looks for two or four arguments requiring -i as the first agrument.
+#If there is no argument after the required -i flag, or if there are three or greater than four arguments, then it will just print help and exit.
+#As a result, -h will be caught every time resulting in no need for an explicit definition.
+#Future args may be included to diferentiate between Windows and Linux ctime record information clarification
 if ($argnum < 2 or $argnum == 3 or $argnum > 4 or $argdashi ne "-i") {
 	#print $argnum . "\n";
 	&printhelp();
 	exit;
 }
 
-#if there are two arguments then print to stdout
+#If there are two arguments (one being -i) then print to stdout
 if ($argnum == 2){
-	#already passed arg one being -i
-	#if its windows no need to find all the directory junctions if the directory entered is invalid
+	#If it is windows, there is no need to find all the directory junctions if the directory entered is invalid
 	if ($windows){
 		$dontuse = &getdirectoryjunctions($argstartdir);
 		#print $dontuse . "\nEnd of Don't Use\n";
 	}
 }
 
-#if there are four arguments then send content to file
+#If there are four arguments then send content to file
 if ($argnum == 4){
 	#already passed arg one being -i now check if arg 3 is -o
 	if ($argdasho ne "-o"){
@@ -88,8 +95,13 @@ if ($logfile){
 	close OUTFILE;
 }
 
-#end of main
+#####################################
+#########    end of main    #########
+#####################################
 
+## Name: loopdir
+## Purpose: 
+## Returns:
 sub loopdir
 {
 	local $startdir = $_[0];
@@ -157,6 +169,9 @@ sub loopdir
 	closedir $dir;	
 }
 
+## Name: printhelp
+## Purpose: Display Help Documentation
+## Returns: Prints Help Info to Screen
 sub printhelp{
 	print "loop.pl Usage:\n\n";
 	print "perl loop.pl -h prints this message\n";
@@ -165,14 +180,16 @@ sub printhelp{
 	print "WARNING: the output file if present will be completely overwritten\n";
 }
 
+## Name: getdirectoryjunctions
+## Purpose: Disregards the directory junctions to prevent the script from crashing
+## Returns: Returns the directories contents without the junctions
 sub getdirectoryjunctions{
 	local $directoryarg = $_[0];
-	#test if folder works
+	#Test if folder works
 	opendir local $test, $directoryarg or die "$! $directoryarg\n";
 	closedir $test;
 	
-	#grab all those directory junctions that can be accessed from the starting folder so that the program doesnt crash
-	#2>NUL for when it doesnt find any directory junctions to stop the stderr message having nothing to do with the script
+	#Using 2>NUL to prevent error message if no directory junctions are found.
 	local $temp = `dir /A:L /S /B $directoryarg 2>NUL`;
 	
 	if ($temp !~ /File Not Found/){
