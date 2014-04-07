@@ -1,5 +1,4 @@
 #!/usr/bin/perl -w
-#use warnings;
 #use strict;
 
 =TODO
@@ -8,6 +7,7 @@ Add support for images of drives (probably another script)
 Add support for going through Windows partitions mounted on linux
 Add support for printing out MFT mac times on Windows
 Add option to not overwrite log with another switch perhaps
+Add option to follow symbolic links in linux --follow or something to that effect
 =cut
 
 #Modules
@@ -26,23 +26,22 @@ my $dontuse = "";
 my $windows = "";
 
 #Variables for Linux
-# - none yet -
+my $linux = "";
+
 
 #OS Detection Code
 if ($^O eq "MSWin32"){
 	$windows = "yes";
-} elsif ($^O eq "cygwin"){
-	#Contians Junctions, requires no atm
-	$windows = "no";
-} else {
-	#Default Action?
+} 
+if ($^O eq "linux") {
+	$linux = "yes";
 }
 
 #START QUICK TESTING AREA=============
 
 
 
-#exit
+#~ exit;
 #END TESTING AREA=====================
 
 
@@ -60,7 +59,6 @@ if ($argnum < 2 or $argnum == 3 or $argnum > 4 or $argdashi ne "-i") {
 
 #If there are two arguments (one being -i) then print to stdout
 if ($argnum == 2){
-	#If it is windows, there is no need to find all the directory junctions if the directory entered is invalid
 	if ($windows){
 		$dontuse = &getdirectoryjunctions($argstartdir);
 		#print $dontuse . "\nEnd of Don't Use\n";
@@ -95,9 +93,9 @@ if ($logfile){
 	close OUTFILE;
 }
 
-#####################################
-#########    end of main    #########
-#####################################
+###########################
+######  end of main  ######
+###########################
 
 ## Name: loopdir
 ## Purpose: 
@@ -115,12 +113,6 @@ sub loopdir
 	foreach $item (@files) {
 		local $together = "";
 		#checking to see if there is a / at the end of the starting dir
-		#if (substr($startdir,(length($startdir)-1),1) eq "/"){
-		#	$together = substr($startdir,0,(length($startdir)-1));
-		#	$together = "$together/$item"
-		#	#$together = $startdir . $item;
-		#}
-		
 		if ($startdir =~ /\/$/){
 			$together = "$together$item";
 		}
@@ -160,8 +152,16 @@ sub loopdir
 				else{
 					print OUTFILE $togethercopy . "\t" . ctime($atime) . "\t" . ctime($mtime) . "\t" . ctime($ctime) . "\n";
 				}
-				#just roll with whatever together was because it breaks if you modify it
-				&loopdir($together);
+				
+				if ($linux){
+					#stop symbolic links to directories from creating an infinite loop
+					if(! -l "$together"){
+						&loopdir("$together");
+					}
+				}
+				else{
+					&loopdir("$together");
+				}
 			}
 		}
 		
