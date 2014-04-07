@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-#use strict;
+use strict;
 
 =TODO
 Everything
@@ -24,23 +24,21 @@ exit;
 ######  end of main  ######
 ###########################
 
+## Name: printhelp
+## Purpose: Display Help Documentation
+## Returns: Prints Help Info to Screen
 sub printhelp{
-	print "Usage:\n";
-	print "search.pl -os <os type> -i <Input file> -o -s <Start date> -e <End Date> -d <Date Format>\n";
-	print "Argument Details:\n";
-	print "-os operating system (Required)\n";
-	print "OS types:\n";
-	print "\tWindows\n";
-	print "\tLinux\n";
-	print "-i input file (Required)\n";
-	print "-o output file (Optional)\n";
-	print "one of the following is required but both can be used:\n";
-	print "-s start date\n";
-	print "-e end date\n";
-	print "-d date format (Required)\n";
-	print "Formats:\n";
-	print "\tdmy\tDay-Month-Year or Day.Month.Year\n";
-	print "\tmdy\tMonth-Day-Year or Month.Day.Year\n";
-	print "\tymd\tYear-Month-Day or Year.Month.Day\n";
-	
+	print "\nUsage: search.pl <-os type> <-i file> [-o file] <[-s date] || [-e date]> <-d format>";
+	print "\n\nOptions:\n";
+	print "    -os type\tSpecify the Operating System of your system. (Required)\n";
+	print "\t\tAccepted Types: Windows, Linux\n";
+	print "    -i\t\tInput File (Required)\n";
+	print "    -o file\tOutput File\n";
+	print "    -s date\tStart Date\n";
+	print "    -e date\tEnd Date\n";
+	print "    -d format\tDate Format (Required)\n";
+	print "\t\tAccepted Date Formats (d = day, m = month, y = year):\n";
+	print "\t\tdmy\tDay-Month-Year or Day.Month.Year\n";
+	print "\t\tmdy\tMonth-Day-Year or Month.Day.Year\n";
+	print "\t\tymd\tYearh-Month-Day or Year.Month.Day\n";
 }

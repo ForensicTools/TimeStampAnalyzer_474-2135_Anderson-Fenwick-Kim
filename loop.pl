@@ -173,11 +173,11 @@ sub loopdir
 ## Purpose: Display Help Documentation
 ## Returns: Prints Help Info to Screen
 sub printhelp{
-	print "loop.pl Usage:\n\n";
-	print "perl loop.pl -h prints this message\n";
-	print "perl loop.pl -i <Starting Directory> -o <Output File>\n";
-	print "-o is an optional argument to save the output to a file\n";
-	print "WARNING: the output file if present will be completely overwritten\n";
+	print "\nUsage: loop.pl <-i path> [-o file]";
+	print "\n\nOptions:\n";
+	print "    -i path\tIndicates the starting directory. (Required)\n";
+	print "    -o file\tOutputs results to a file.\n";
+	print "\t\tWARNING: -o will OVERWRITE the target file if it exists.\n";
 }
 
 ## Name: getdirectoryjunctions
