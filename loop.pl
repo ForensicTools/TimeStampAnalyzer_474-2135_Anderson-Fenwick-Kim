@@ -128,6 +128,9 @@ sub loopdir
 			$together = "$startdir/$item";
 		}
 
+		#Hash the data
+		&hashin($together);
+		
 		#prints or writes date output
 		&printdate($together);
 		
@@ -176,67 +179,74 @@ sub getdirectoryjunctions{
 	return $temp;
 }
 
-
+## Name: hashin
+## Purpose: Manages hash tables based on the times. May get merged with printdate to piggy back.
+## Returns: None.
+sub hashin{
+	#Nothing =D
+	return;	
+}
 
 ## Name: printdate
 ## Purpose: Prints Access time, Modified time, Created time of each file and directory 
 ##			to either STDOUT or to specified file.
 ## Returns: None.
 sub printdate{
-local $together = $_[0];
-if (-f "$together"){
+	local $together = $_[0];
+	if (-f "$together"){
+		($atime,$mtime,$ctime)=(stat($together))[8..10];
+		if (!$logfile){
+			print "Filename: " . $item . "\n";
+			print "Access: " . ctime($atime) . "\t";
+			print "Modified: " . ctime($mtime) . "\t";
+			print "Created: " . ctime($ctime) . "\n";
+		}
+		else{
+			print OUTFILE "Filename: " . $item . "\n";
+			print OUTFILE "Access: " . ctime($atime) . "\t";
+			print OUTFILE "Modified: " . ctime($mtime) . "\t";
+			print OUTFILE "Created: " . ctime($ctime) . "\n";
+		}
+	}
+		
+	#however if it is a directory get the mac times and then loop through that directory
+	if (-d "$together"){
+		#since the dontuse variable is blank if linux it will just get the mac times and go one level deeper
+		if ($dontuse !~ /$together\n/){
+			#to make the output look pretty
+			local $togethercopy = $together;
+			#remove the \'s in the folder path to make it look pretty
+			$togethercopy =~ s/\\//g;
+			#then proceed to flip all the /'s in the path to \ like windows uses
+			if ($windows){
+				$togethercopy =~ s/\//\\/g;
+			}
 			($atime,$mtime,$ctime)=(stat($together))[8..10];
 			if (!$logfile){
-				print "Filename: " . $item . "\n";
+				print "Foldername: " . $togethercopy . "\n";
 				print "Access: " . ctime($atime) . "\t";
 				print "Modified: " . ctime($mtime) . "\t";
 				print "Created: " . ctime($ctime) . "\n";
 			}
 			else{
-				print OUTFILE "Filename: " . $item . "\n";
+				print OUTFILE "Foldername: " . $togethercopy . "\n";
 				print OUTFILE "Access: " . ctime($atime) . "\t";
 				print OUTFILE "Modified: " . ctime($mtime) . "\t";
 				print OUTFILE "Created: " . ctime($ctime) . "\n";
 			}
-		}
-		
-		#however if it is a directory get the mac times and then loop through that directory
-		if (-d "$together"){
-			#since the dontuse variable is blank if linux it will just get the mac times and go one level deeper
-			if ($dontuse !~ /$together\n/){
-				#to make the output look pretty
-				local $togethercopy = $together;
-				#remove the \'s in the folder path to make it look pretty
-				$togethercopy =~ s/\\//g;
-				#then proceed to flip all the /'s in the path to \ like windows uses
-				if ($windows){
-					$togethercopy =~ s/\//\\/g;
-				}
-				($atime,$mtime,$ctime)=(stat($together))[8..10];
-				if (!$logfile){
-					print "Foldername: " . $togethercopy . "\n";
-					print "Access: " . ctime($atime) . "\t";
-					print "Modified: " . ctime($mtime) . "\t";
-					print "Created: " . ctime($ctime) . "\n";
-				}
-				else{
-					print OUTFILE "Foldername: " . $togethercopy . "\n";
-					print OUTFILE "Access: " . ctime($atime) . "\t";
-					print OUTFILE "Modified: " . ctime($mtime) . "\t";
-					print OUTFILE "Created: " . ctime($ctime) . "\n";
-				}
 				
-				if ($linux){
-					#stop symbolic links to directories from creating an infinite loop
-					if(! -l "$together"){
-						&loopdir("$together");
-					}
-				}
-				else{
+			if ($linux){
+				#stop symbolic links to directories from creating an infinite loop
+				if(! -l "$together"){
 					&loopdir("$together");
 				}
 			}
+			else{
+				&loopdir("$together");
+			}
 		}
+	}
+	return;
 }
 
 
@@ -251,76 +261,68 @@ sub checkoption{
 ## Purpose:
 ## Returns: $timefrom, $timeto
 sub searchdate{
-print "<Format: Day.Month.Year Hour:Minute:Seconds> (e.g. 20.12.2010 13:50:25)\n";
-print "Enter a staring time for search range:";
-$argsearchfrom = <STDIN>;
-chomp($argsearchfrom);
-my ($mday,$mon,$year,$hour,$min,$sec) = split(/[\s.:]+/, $argsearchfrom);
-my $timefrom = timelocal($sec,$min,$hour,$mday,$mon-1,$year);
+	print "<Format: Day.Month.Year Hour:Minute:Seconds> (e.g. 20.12.2010 13:50:25)\n";
+	print "Enter a staring time for search range:";
+	$argsearchfrom = <STDIN>;
+	chomp($argsearchfrom);
+	my ($mday,$mon,$year,$hour,$min,$sec) = split(/[\s.:]+/, $argsearchfrom);
+	my $timefrom = timelocal($sec,$min,$hour,$mday,$mon-1,$year);
 
-print "Enter a ending time for search range:";
-$argsearchto = <STDIN>;
-chomp($argsearchto);
-($mday,$mon,$year,$hour,$min,$sec) = split(/[\s.:]+/, $argsearchto);
-my $timeto = timelocal($sec,$min,$hour,$mday,$mon-1,$year);
+	print "Enter a ending time for search range:";
+	$argsearchto = <STDIN>;
+	chomp($argsearchto);
+	($mday,$mon,$year,$hour,$min,$sec) = split(/[\s.:]+/, $argsearchto);
+	my $timeto = timelocal($sec,$min,$hour,$mday,$mon-1,$year);
 
-return ($timefrom, $timeto);
-
+	return ($timefrom, $timeto);
 }
 
 ## Name: cmpdate
 ## Purpose: 
 ## Returns: 
 sub cmpdate{
-local $startdir = $_[0];
-local $stype = $_[1];
-local $timefrom = $_[2];
-local $timeto = $_[3];
-my $printresult = 0;
+	local $startdir = $_[0];
+	local $stype = $_[1];
+	local $timefrom = $_[2];
+	local $timeto = $_[3];
+	my $printresult = 0;
 
+	opendir local $dir, $startdir or die "$! $startdir\n";
+	local @files = readdir($dir);
+	#get rid of those pesky . and ..'s with their infinite recursion possibilities
+	shift @files;
+	shift @files;
 
-
-opendir local $dir, $startdir or die "$! $startdir\n";
-local @files = readdir($dir);
-#get rid of those pesky . and ..'s with their infinite recursion possibilities
-shift @files;
-shift @files;
-
-local $item;
-foreach $item (@files) 
-{
-	local $together = "";
+	local $item;
+	foreach $item (@files){
+		local $together = "";
 	
-	if ($startdir =~ /\/$/)
-	{
-		$together = "$together$item";
-	}
-	else
-	{
-		$together = "$startdir/$item";
-	}
-	($atime,$mtime,$ctime)=(stat($together))[8..10];
-	if ($stype eq "acc")
-	{
-		if ($timefrom <= $atime && $timeto >= $atime)
-		{
-			&printdate($together);
+		if ($startdir =~ /\/$/){
+			$together = "$together$item";
+		}
+		else{
+			$together = "$startdir/$item";
+		}
+		
+		($atime,$mtime,$ctime)=(stat($together))[8..10];
+		if ($stype eq "acc"){
+			if ($timefrom <= $atime && $timeto >= $atime){
+				&printdate($together);
+			}
+		}
+		
+		if ($stype eq "mod"){
+			if ($timefrom <= $mtime && $timeto >= $mtime){
+				&printdate($together);
+			}
+		}
+		
+		if ($stype eq "cre"){
+			if ($timefrom <= $ctime && $timeto >= $ctime){
+				&printdate($together);
+			}
 		}
 	}
-	if ($stype eq "mod")
-	{
-		if ($timefrom <= $mtime && $timeto >= $mtime)
-		{
-			&printdate($together);
-		}
-	}
-	if ($stype eq "cre")
-	{
-		if ($timefrom <= $ctime && $timeto >= $ctime)
-		{
-			&printdate($together);
-		}
-	}
-}
-closedir $dir;
+	
+	closedir $dir;
 }
