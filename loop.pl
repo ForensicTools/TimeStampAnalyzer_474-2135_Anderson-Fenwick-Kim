@@ -14,14 +14,24 @@ Add option to follow symbolic links in linux --follow or something to that effec
 #Modules
 use Time::localtime;
 use Time::Local;
+use Digest::MD5;
 
-#Global Variables
+#Prototypes
+sub hashin;
+
+#Argument Variables
 my $argnum = scalar @ARGV;
 my $argdashi = $ARGV[0];
 my $argstartdir = $ARGV[1];
 my $argdasho = $ARGV[2];
 my $argoutfile = $ARGV[3];
+
+#Global Variables
 my $logfile = "";
+my %filehash;
+my %accesshash;
+my %modifiedhash;
+my %createdhash;
 
 #Variables for Windows
 my $dontuse = "";
@@ -30,7 +40,6 @@ my $windows = "";
 #Variables for Linux
 my $linux = "";
 
-
 #OS Detection Code
 if ($^O eq "MSWin32"){
 	$windows = "yes";
@@ -38,15 +47,6 @@ if ($^O eq "MSWin32"){
 if ($^O eq "linux") {
 	$linux = "yes";
 }
-
-#START QUICK TESTING AREA=============
-
-
-
-#~ exit;
-#END TESTING AREA=====================
-
-
 
 #Command line input parsing
 #Looks for two or four arguments requiring -i as the first agrument.
@@ -99,7 +99,20 @@ if ($logfile){
 #close the log file handle
 if ($logfile){
 	close OUTFILE;
-}
+}	
+
+#TESTING AREA=============
+
+#Append hash information to a file called data.txt for checking.
+#foreach my $file (sort keys %filehash) {
+#	foreach my $value (keys %{ $filehash{$file} }){
+#		open (MYTEST, '>>data.txt');
+#		print MYTEST "$file, $value: $filehash{$file}{$value}\n";
+#		close (MYTEST);
+#	}
+#}
+
+#END TESTING AREA=====================
 
 ###########################
 ######  end of main  ######
@@ -129,7 +142,7 @@ sub loopdir
 		}
 
 		#Hash the data
-		&hashin($together);
+		hashin($item,$together);
 		
 		#prints or writes date output
 		&printdate($together);
@@ -180,10 +193,62 @@ sub getdirectoryjunctions{
 }
 
 ## Name: hashin
-## Purpose: Manages hash tables based on the times. May get merged with printdate to piggy back.
-## Returns: None.
+## Purpose: Hashes times for number of occurrences. May get merged with printdate to piggy back.
+## Returns: Nothing.
 sub hashin{
-	#Nothing =D
+	local $item = $_[0];
+	local $path = $_[1];
+	#print "\n I am looking at $item\n";
+	
+	#Split up Access Time, Modified Time, and Created Time.
+	($atime,$mtime,$ctime)=(stat($path))[8..10];
+	#print "\n\n\nChecking Hash.\n";
+	
+	#These could be removed.
+	#Check if the Time specified already has a hash.
+	if (exists $accesshash{$atime}){
+		#If it does, add one to the count.
+		$accesshash{$atime}++;
+	}
+	else {
+		#If it doesn't, add it the hash with a count of 1.
+		%accesshash = (%accesshash, $atime, 1);
+	}
+	if (exists $modifiedhash{$mtime}){
+		$modifiedhash{$mtime}++;
+	}
+	else {
+		%modifiedhash = (%modifiedhash, $mtime, 1);
+	}
+	if (exists $createdhash{$ctime}){
+		$createdhash{$ctime}++;
+	}
+	else {
+		%createdhash = (%createdhash, $ctime, 1);
+	}
+	
+	#These are important.
+	#Create a Hash containing Filename, Access Time, Modified Time, Created Time, and an md5 sum of the file.
+	$filehash{$item}{atime} = $atime;
+	$filehash{$item}{mtime} = $mtime;
+	$filehash{$item}{ctime} = $ctime;
+	open (my $fh, '<', $path) or die "Can't open '$item': $!";
+	binmode($fh);
+	$filehash{$item}{md5} = Digest::MD5->new->addfile($fh)->hexdigest;
+	
+	#Print the information to a file. (You'll get duplicates)
+	#foreach my $file (sort keys %filehash) {
+	#	foreach my $value (keys %{ $filehash{$file} }){
+	#		open (MYTEST, '>>data.txt');
+	#		print MYTEST "$file, $value: $filehash{$file}{$value}\n";
+	#		close (MYTEST);
+	#	}
+	#}
+	
+	#print "Done Checking Hash.\n";
+	#print "Access Hash Appears: " . $accesshash{$atime} . " time(s).\n";
+	#print "Modified Hash Appears: " . $modifiedhash{$mtime} . " time(s).\n";
+	#print "Created Hash Appears: " . $createdhash{$ctime} . " time(s).\n\n";
 	return;	
 }
 
