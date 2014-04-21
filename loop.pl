@@ -14,14 +14,24 @@ Add option to follow symbolic links in linux --follow or something to that effec
 #Modules
 use Time::localtime;
 use Time::Local;
+use Digest::MD5;
 
-#Global Variables
+#Prototypes
+sub hashin;
+
+#Argument Variables
 my $argnum = scalar @ARGV;
 my $argdashi = $ARGV[0];
 my $argstartdir = $ARGV[1];
 my $argdasho = $ARGV[2];
 my $argoutfile = $ARGV[3];
+
+#Global Variables
 my $logfile = "";
+my %filehash;
+my %accesshash;
+my %modifiedhash;
+my %createdhash;
 
 #Variables for Windows
 my $dontuse = "";
@@ -30,7 +40,6 @@ my $windows = "";
 #Variables for Linux
 my $linux = "";
 
-
 #OS Detection Code
 if ($^O eq "MSWin32"){
 	$windows = "yes";
@@ -38,15 +47,6 @@ if ($^O eq "MSWin32"){
 if ($^O eq "linux") {
 	$linux = "yes";
 }
-
-#START QUICK TESTING AREA=============
-
-
-
-#~ exit;
-#END TESTING AREA=====================
-
-
 
 #Command line input parsing
 #Looks for two or four arguments requiring -i as the first agrument.
@@ -99,7 +99,20 @@ if ($logfile){
 #close the log file handle
 if ($logfile){
 	close OUTFILE;
-}
+}	
+
+#TESTING AREA=============
+
+#Append hash information to a file called data.txt for checking.
+#foreach my $file (sort keys %filehash) {
+#	foreach my $value (keys %{ $filehash{$file} }){
+#		open (MYTEST, '>>data.txt');
+#		print MYTEST "$file, $value: $filehash{$file}{$value}\n";
+#		close (MYTEST);
+#	}
+#}
+
+#END TESTING AREA=====================
 
 ###########################
 ######  end of main  ######
@@ -128,6 +141,9 @@ sub loopdir
 			$together = "$startdir/$item";
 		}
 
+		#Hash the data
+		hashin($item,$together);
+		
 		#prints or writes date output
 		&printdate($together);
 		
@@ -176,67 +192,126 @@ sub getdirectoryjunctions{
 	return $temp;
 }
 
-
+## Name: hashin
+## Purpose: Hashes times for number of occurrences. May get merged with printdate to piggy back.
+## Returns: Nothing.
+sub hashin{
+	local $item = $_[0];
+	local $path = $_[1];
+	#print "\n I am looking at $item\n";
+	
+	#Split up Access Time, Modified Time, and Created Time.
+	($atime,$mtime,$ctime)=(stat($path))[8..10];
+	#print "\n\n\nChecking Hash.\n";
+	
+	#These could be removed.
+	#Check if the Time specified already has a hash.
+	if (exists $accesshash{$atime}){
+		#If it does, add one to the count.
+		$accesshash{$atime}++;
+	}
+	else {
+		#If it doesn't, add it the hash with a count of 1.
+		%accesshash = (%accesshash, $atime, 1);
+	}
+	if (exists $modifiedhash{$mtime}){
+		$modifiedhash{$mtime}++;
+	}
+	else {
+		%modifiedhash = (%modifiedhash, $mtime, 1);
+	}
+	if (exists $createdhash{$ctime}){
+		$createdhash{$ctime}++;
+	}
+	else {
+		%createdhash = (%createdhash, $ctime, 1);
+	}
+	
+	#These are important.
+	#Create a Hash containing Filename, Access Time, Modified Time, Created Time, and an md5 sum of the file.
+	$filehash{$item}{atime} = $atime;
+	$filehash{$item}{mtime} = $mtime;
+	$filehash{$item}{ctime} = $ctime;
+	open (my $fh, '<', $path) or die "Can't open '$item': $!";
+	binmode($fh);
+	$filehash{$item}{md5} = Digest::MD5->new->addfile($fh)->hexdigest;
+	
+	#Print the information to a file. (You'll get duplicates)
+	#foreach my $file (sort keys %filehash) {
+	#	foreach my $value (keys %{ $filehash{$file} }){
+	#		open (MYTEST, '>>data.txt');
+	#		print MYTEST "$file, $value: $filehash{$file}{$value}\n";
+	#		close (MYTEST);
+	#	}
+	#}
+	
+	#print "Done Checking Hash.\n";
+	#print "Access Hash Appears: " . $accesshash{$atime} . " time(s).\n";
+	#print "Modified Hash Appears: " . $modifiedhash{$mtime} . " time(s).\n";
+	#print "Created Hash Appears: " . $createdhash{$ctime} . " time(s).\n\n";
+	return;	
+}
 
 ## Name: printdate
 ## Purpose: Prints Access time, Modified time, Created time of each file and directory 
 ##			to either STDOUT or to specified file.
 ## Returns: None.
 sub printdate{
-local $together = $_[0];
-if (-f "$together"){
+	local $together = $_[0];
+	if (-f "$together"){
+		($atime,$mtime,$ctime)=(stat($together))[8..10];
+		if (!$logfile){
+			print "Filename: " . $item . "\n";
+			print "Access: " . ctime($atime) . "\t";
+			print "Modified: " . ctime($mtime) . "\t";
+			print "Created: " . ctime($ctime) . "\n";
+		}
+		else{
+			print OUTFILE "Filename: " . $item . "\n";
+			print OUTFILE "Access: " . ctime($atime) . "\t";
+			print OUTFILE "Modified: " . ctime($mtime) . "\t";
+			print OUTFILE "Created: " . ctime($ctime) . "\n";
+		}
+	}
+		
+	#however if it is a directory get the mac times and then loop through that directory
+	if (-d "$together"){
+		#since the dontuse variable is blank if linux it will just get the mac times and go one level deeper
+		if ($dontuse !~ /$together\n/){
+			#to make the output look pretty
+			local $togethercopy = $together;
+			#remove the \'s in the folder path to make it look pretty
+			$togethercopy =~ s/\\//g;
+			#then proceed to flip all the /'s in the path to \ like windows uses
+			if ($windows){
+				$togethercopy =~ s/\//\\/g;
+			}
 			($atime,$mtime,$ctime)=(stat($together))[8..10];
 			if (!$logfile){
-				print "Filename: " . $item . "\n";
+				print "Foldername: " . $togethercopy . "\n";
 				print "Access: " . ctime($atime) . "\t";
 				print "Modified: " . ctime($mtime) . "\t";
 				print "Created: " . ctime($ctime) . "\n";
 			}
 			else{
-				print OUTFILE "Filename: " . $item . "\n";
+				print OUTFILE "Foldername: " . $togethercopy . "\n";
 				print OUTFILE "Access: " . ctime($atime) . "\t";
 				print OUTFILE "Modified: " . ctime($mtime) . "\t";
 				print OUTFILE "Created: " . ctime($ctime) . "\n";
 			}
-		}
-		
-		#however if it is a directory get the mac times and then loop through that directory
-		if (-d "$together"){
-			#since the dontuse variable is blank if linux it will just get the mac times and go one level deeper
-			if ($dontuse !~ /$together\n/){
-				#to make the output look pretty
-				local $togethercopy = $together;
-				#remove the \'s in the folder path to make it look pretty
-				$togethercopy =~ s/\\//g;
-				#then proceed to flip all the /'s in the path to \ like windows uses
-				if ($windows){
-					$togethercopy =~ s/\//\\/g;
-				}
-				($atime,$mtime,$ctime)=(stat($together))[8..10];
-				if (!$logfile){
-					print "Foldername: " . $togethercopy . "\n";
-					print "Access: " . ctime($atime) . "\t";
-					print "Modified: " . ctime($mtime) . "\t";
-					print "Created: " . ctime($ctime) . "\n";
-				}
-				else{
-					print OUTFILE "Foldername: " . $togethercopy . "\n";
-					print OUTFILE "Access: " . ctime($atime) . "\t";
-					print OUTFILE "Modified: " . ctime($mtime) . "\t";
-					print OUTFILE "Created: " . ctime($ctime) . "\n";
-				}
 				
-				if ($linux){
-					#stop symbolic links to directories from creating an infinite loop
-					if(! -l "$together"){
-						&loopdir("$together");
-					}
-				}
-				else{
+			if ($linux){
+				#stop symbolic links to directories from creating an infinite loop
+				if(! -l "$together"){
 					&loopdir("$together");
 				}
 			}
+			else{
+				&loopdir("$together");
+			}
 		}
+	}
+	return;
 }
 
 
@@ -251,76 +326,68 @@ sub checkoption{
 ## Purpose:
 ## Returns: $timefrom, $timeto
 sub searchdate{
-print "<Format: Day.Month.Year Hour:Minute:Seconds> (e.g. 20.12.2010 13:50:25)\n";
-print "Enter a staring time for search range:";
-$argsearchfrom = <STDIN>;
-chomp($argsearchfrom);
-my ($mday,$mon,$year,$hour,$min,$sec) = split(/[\s.:]+/, $argsearchfrom);
-my $timefrom = timelocal($sec,$min,$hour,$mday,$mon-1,$year);
+	print "<Format: Day.Month.Year Hour:Minute:Seconds> (e.g. 20.12.2010 13:50:25)\n";
+	print "Enter a staring time for search range:";
+	$argsearchfrom = <STDIN>;
+	chomp($argsearchfrom);
+	my ($mday,$mon,$year,$hour,$min,$sec) = split(/[\s.:]+/, $argsearchfrom);
+	my $timefrom = timelocal($sec,$min,$hour,$mday,$mon-1,$year);
 
-print "Enter a ending time for search range:";
-$argsearchto = <STDIN>;
-chomp($argsearchto);
-($mday,$mon,$year,$hour,$min,$sec) = split(/[\s.:]+/, $argsearchto);
-my $timeto = timelocal($sec,$min,$hour,$mday,$mon-1,$year);
+	print "Enter a ending time for search range:";
+	$argsearchto = <STDIN>;
+	chomp($argsearchto);
+	($mday,$mon,$year,$hour,$min,$sec) = split(/[\s.:]+/, $argsearchto);
+	my $timeto = timelocal($sec,$min,$hour,$mday,$mon-1,$year);
 
-return ($timefrom, $timeto);
-
+	return ($timefrom, $timeto);
 }
 
 ## Name: cmpdate
 ## Purpose: 
 ## Returns: 
 sub cmpdate{
-local $startdir = $_[0];
-local $stype = $_[1];
-local $timefrom = $_[2];
-local $timeto = $_[3];
-my $printresult = 0;
+	local $startdir = $_[0];
+	local $stype = $_[1];
+	local $timefrom = $_[2];
+	local $timeto = $_[3];
+	my $printresult = 0;
 
+	opendir local $dir, $startdir or die "$! $startdir\n";
+	local @files = readdir($dir);
+	#get rid of those pesky . and ..'s with their infinite recursion possibilities
+	shift @files;
+	shift @files;
 
-
-opendir local $dir, $startdir or die "$! $startdir\n";
-local @files = readdir($dir);
-#get rid of those pesky . and ..'s with their infinite recursion possibilities
-shift @files;
-shift @files;
-
-local $item;
-foreach $item (@files) 
-{
-	local $together = "";
+	local $item;
+	foreach $item (@files){
+		local $together = "";
 	
-	if ($startdir =~ /\/$/)
-	{
-		$together = "$together$item";
-	}
-	else
-	{
-		$together = "$startdir/$item";
-	}
-	($atime,$mtime,$ctime)=(stat($together))[8..10];
-	if ($stype eq "acc")
-	{
-		if ($timefrom <= $atime && $timeto >= $atime)
-		{
-			&printdate($together);
+		if ($startdir =~ /\/$/){
+			$together = "$together$item";
+		}
+		else{
+			$together = "$startdir/$item";
+		}
+		
+		($atime,$mtime,$ctime)=(stat($together))[8..10];
+		if ($stype eq "acc"){
+			if ($timefrom <= $atime && $timeto >= $atime){
+				&printdate($together);
+			}
+		}
+		
+		if ($stype eq "mod"){
+			if ($timefrom <= $mtime && $timeto >= $mtime){
+				&printdate($together);
+			}
+		}
+		
+		if ($stype eq "cre"){
+			if ($timefrom <= $ctime && $timeto >= $ctime){
+				&printdate($together);
+			}
 		}
 	}
-	if ($stype eq "mod")
-	{
-		if ($timefrom <= $mtime && $timeto >= $mtime)
-		{
-			&printdate($together);
-		}
-	}
-	if ($stype eq "cre")
-	{
-		if ($timefrom <= $ctime && $timeto >= $ctime)
-		{
-			&printdate($together);
-		}
-	}
-}
-closedir $dir;
+	
+	closedir $dir;
 }
