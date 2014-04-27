@@ -2,7 +2,6 @@
 #use strict;
 
 =TODO
-***** complete checkoption first.
 Add more support for linux
 Add support for images of drives (probably another script)
 Add support for going through Windows partitions mounted on linux
@@ -15,16 +14,22 @@ Add option to follow symbolic links in linux --follow or something to that effec
 use Time::localtime;
 use Time::Local;
 use Digest::MD5;
+use Getopt::Long;
 
 #Prototypes
 sub hashin;
 
+
 #Argument Variables
+my $cla = GetOptions (	"i=s"		=>	\$argdashi,	# -i option, directory path.
+						"o=s"		=>	\$argdasho,	# -i option, output filename.
+#						"s=s"		=>	\$argdashs,	# -s option, search type.
+						"help|h|?"	=> \$help, 		# -help or -h or -?, help message.
+) or &printhelp();
+
 my $argnum = scalar @ARGV;
-my $argdashi = $ARGV[0];
-my $argstartdir = $ARGV[1];
-my $argdasho = $ARGV[2];
-my $argoutfile = $ARGV[3];
+my $argstartdir = $argdashi;
+my $argoutfile = $argdasho;
 
 #Global Variables
 my $logfile = "";
@@ -49,52 +54,31 @@ if ($^O eq "linux") {
 }
 
 #Command line input parsing
-#Looks for two or four arguments requiring -i as the first agrument.
-#If there is no argument after the required -i flag, or if there are three or greater than four arguments, then it will just print help and exit.
-#As a result, -h will be caught every time resulting in no need for an explicit definition.
-#Future args may be included to diferentiate between Windows and Linux ctime record information clarification
-if ($argnum < 2 or $argnum == 3 or $argnum > 6 or $argdashi ne "-i") {
-	#print $argnum . "\n";
+#If -help or -h or -? argument used, print instruction message.
+if ($help){
 	&printhelp();
-	exit;
 }
 
-#If there are two arguments (one being -i) then print to stdout
-if ($argnum == 2){
+#If there is -i argument and no -o argument.
+if ($argdashi && $argdasho eq "")	
+{
 	if ($windows){
 		$dontuse = &getdirectoryjunctions($argstartdir);
 		#print $dontuse . "\nEnd of Don't Use\n";
+		&loopdir($argstartdir);
 	}
 }
 
-#If there are four arguments then send content to file
-if ($argnum == 6){
-	#already passed arg one being -i now check if arg 3 is -o
-	if ($argdasho ne "-o"){
-		&printhelp();
-		exit;
-	}
-	else{
-		if ($windows){
+#If there is both -i arguemnt and -o argument.
+if ($argdashi && $argdasho)
+{
+	if ($windows){
 			$dontuse = &getdirectoryjunctions($argstartdir);
 		}
-		$logfile = "yes";
-	}
-}
-
-#open the log file for writing
-if ($logfile){
+	$logfile = "yes";
 	open (OUTFILE, ">", "$argoutfile") or die "$! $argoutfile\n";
+	&loopdir($argstartdir);
 }
-
-
-## For testing searchdate() and &cmpdate
-#my ($tfrom, $tto) = &searchdate();
-#&cmpdate($argstartdir, "acc", $tfrom, $tto);
-
-
-#finally get to start looping through the directories
-&loopdir($argstartdir);
 
 #close the log file handle
 if ($logfile){
@@ -102,7 +86,7 @@ if ($logfile){
 }	
 
 #TESTING AREA=============
-
+#
 #Append hash information to a file called data.txt for checking.
 #foreach my $file (sort keys %filehash) {
 #	foreach my $value (keys %{ $filehash{$file} }){
@@ -160,13 +144,14 @@ sub loopdir
 ## Purpose: Display Help Documentation
 ## Returns: Prints Help Info to Screen
 sub printhelp{
-	print "\nUsage: loop.pl <-i path> [-o file][-s type]";
+	print "\nUsage: loop.pl <-i=path> [-o=file][-s=type]";
 	print "\n\nOptions:\n";
 	print "    -i path\tIndicates the starting directory. (Required)\n";
 	print "    -o file\tOutputs results to a file.\n";
 	print "    -s type\tType of date to search.\n";
 	print "           \t<acc> = Access time, <mod> = Modified time, <cre> = Created time\n";
 	print "\t\tWARNING: -o will OVERWRITE the target file if it exists.\n";
+	exit;
 }
 
 ## Name: getdirectoryjunctions
