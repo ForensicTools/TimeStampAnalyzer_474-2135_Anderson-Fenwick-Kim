@@ -15,24 +15,36 @@ use Time::localtime;
 use Time::Local;
 use Digest::MD5;
 use Getopt::Long;
-
-#Prototypes
-sub hashin;
-
+use Storable;
 
 #Argument Variables
-my $cla = GetOptions (	"i=s"		=>	\$argdashi,	# -i option, directory path.
-						"o=s"		=>	\$argdasho,	# -i option, output filename.
-#						"s=s"		=>	\$argdashs,	# -s option, search type.
-						"help|h|?"	=> \$help, 		# -help or -h or -?, help message.
-) or &printhelp();
+my $startdir = "";
+my $logfile = "";
+my $help = "";
+my $searchstring = "";
 
-my $argnum = scalar @ARGV;
-my $argstartdir = $argdashi;
-my $argoutfile = $argdasho;
+GetOptions(
+	"i=s" => \$startdir,		# -i option, directory path.
+	"o=s" => \$logfile,		# -o option, output filename.
+	"s=s" => \$searchstring,	# -s option, search type.
+	"help|h|?" => \$help,		# -help or -h or -?, help message.
+);
+
+#~ print $startdir . "\n" . $logfile . "\n" . $help . "\n" . $searchstring . "\n";
+#~ exit;
+
+#ARG VALIDATION
+#Must have a startdir
+if (!$startdir){
+	$help = "1";
+}
+
+#catch all failed validations
+if ($help){
+	&printhelp();
+}
 
 #Global Variables
-my $logfile = "";
 my %filehash;
 my %accesshash;
 my %modifiedhash;
@@ -48,37 +60,18 @@ my $linux = "";
 #OS Detection Code
 if ($^O eq "MSWin32"){
 	$windows = "yes";
+	$dontuse = &getdirectoryjunctions($startdir);
+	print $dontuse . "\nEnd of Don't Use\n";
 } 
 if ($^O eq "linux") {
 	$linux = "yes";
 }
 
-#Command line input parsing
-#If -help or -h or -? argument used, print instruction message.
-if ($help){
-	&printhelp();
+if ($logfile){
+	open (OUTFILE, ">", "$logfile") or die "$! $logfile\n";
 }
-
-#If there is -i argument and no -o argument.
-if ($argdashi && $argdasho eq "")	
-{
-	if ($windows){
-		$dontuse = &getdirectoryjunctions($argstartdir);
-		#print $dontuse . "\nEnd of Don't Use\n";
-		&loopdir($argstartdir);
-	}
-}
-
-#If there is both -i arguemnt and -o argument.
-if ($argdashi && $argdasho)
-{
-	if ($windows){
-			$dontuse = &getdirectoryjunctions($argstartdir);
-		}
-	$logfile = "yes";
-	open (OUTFILE, ">", "$argoutfile") or die "$! $argoutfile\n";
-	&loopdir($argstartdir);
-}
+	
+&loopdir($startdir);
 
 #close the log file handle
 if ($logfile){
@@ -107,35 +100,33 @@ if ($logfile){
 ## Returns:
 sub loopdir
 {
-	local $startdir = $_[0];
-	opendir local $dir, $startdir or die "$! $startdir\n";
+	local $startingdir = $_[0];
+	$startingdir =~ s/\\/\//g;
+	opendir local $dir, $startingdir or die "$! $startingdir\n";
 	local @files = readdir($dir);
 	#get rid of those pesky . and ..'s with their infinite recursion possibilities
 	shift @files;
 	shift @files;
 	
 	local $item;
+	
 	foreach $item (@files) {
 		local $together = "";
 		#checking to see if there is a / at the end of the starting dir
-		if ($startdir =~ /\/$/){
-			$together = "$together$item";
+		if ($startingdir =~ /\/$/){
+			$together = "$startingdir$item";
 		}
 		else{
-			$together = "$startdir/$item";
+			$together = "$startingdir/$item";
 		}
-
-		#Hash the data
-		hashin($item,$together);
 		
+		#put stuff in hashes
+		hashin("$together");
+				
 		#prints or writes date output
-		&printdate($together);
+		&printdate("$together");
 		
 		#look into ctime difference with windows and every other operating system
-		
-		#if a file then get mac times
-		
-		
 	}
 	closedir $dir;	
 }
@@ -144,13 +135,13 @@ sub loopdir
 ## Purpose: Display Help Documentation
 ## Returns: Prints Help Info to Screen
 sub printhelp{
-	print "\nUsage: loop.pl <-i=path> [-o=file][-s=type]";
+	print "\nUsage: loop.pl <-i=path> [-o=file] [-s=type]";
 	print "\n\nOptions:\n";
-	print "    -i path\tIndicates the starting directory. (Required)\n";
-	print "    -o file\tOutputs results to a file.\n";
-	print "    -s type\tType of date to search.\n";
-	print "           \t<acc> = Access time, <mod> = Modified time, <cre> = Created time\n";
-	print "\t\tWARNING: -o will OVERWRITE the target file if it exists.\n";
+	print "\t-i path\tIndicates the starting directory. (Required)\n";
+	print "\t-o file\tOutputs results to a file.\n";
+	print "\t-s type\tType of date to search.\n";
+	print "\t\t<acc> = Access time,\n\t\t<mod> = Modified time,\n\t\t<cre> = Created time\n";
+	print "\tWARNING: -o will OVERWRITE the target file if it exists.\n";
 	exit;
 }
 
@@ -158,23 +149,25 @@ sub printhelp{
 ## Purpose: Disregards the directory junctions to prevent the script from crashing
 ## Returns: Returns the directories contents without the junctions
 sub getdirectoryjunctions{
-	local $directoryarg = $_[0];
+	local $startingdir = $_[0];
 	#Test if folder works
-	opendir local $test, $directoryarg or die "$! $directoryarg\n";
-	closedir $test;
-	
-	#Using 2>NUL to prevent error message if no directory junctions are found.
-	local $temp = `dir /A:L /S /B $directoryarg 2>NUL`;
-	
-	if ($temp !~ /File Not Found/){
-		#replace all \'s with /'s
-		$temp =~ s/\\/\//g;
+	if(-d $startingdir){
+		#Using 2>NUL to prevent error message if no directory junctions are found.
+		local $temp = `dir /A:L /S /B $startingdir 2>NUL`;
+		if ($temp !~ /File Not Found/){
+			#replace all \'s with /'s
+			$temp =~ s/\\/\//g;
+		}
+		else{
+			#if the list is just file not found then just make it blank since there is no directory junctions you have to worry about
+			$temp = "";
+		}
+		return $temp;
 	}
 	else{
-		#if the list is just file not found then just make it blank since there is no directory junctions you have to worry about
-		$temp = "";
+		print "Not a valid directory!\n";
+		exit;
 	}
-	return $temp;
 }
 
 ## Name: hashin
@@ -182,11 +175,10 @@ sub getdirectoryjunctions{
 ## Returns: Nothing.
 sub hashin{
 	local $item = $_[0];
-	local $path = $_[1];
 	#print "\n I am looking at $item\n";
 	
 	#Split up Access Time, Modified Time, and Created Time.
-	($atime,$mtime,$ctime)=(stat($path))[8..10];
+	($atime,$mtime,$ctime)=(stat($item))[8..10];
 	#print "\n\n\nChecking Hash.\n";
 	
 	#These could be removed.
@@ -213,13 +205,14 @@ sub hashin{
 	}
 	
 	#These are important.
-	#Create a Hash containing Filename, Access Time, Modified Time, Created Time, and an md5 sum of the file.
+	#Create a Hash containing Filename, Access Time, Modified Time, Created Time, and in the future an md5 sum of the file.
 	$filehash{$item}{atime} = $atime;
 	$filehash{$item}{mtime} = $mtime;
 	$filehash{$item}{ctime} = $ctime;
-	open (my $fh, '<', $path) or die "Can't open '$item': $!";
-	binmode($fh);
-	$filehash{$item}{md5} = Digest::MD5->new->addfile($fh)->hexdigest;
+	
+	#open (my $fh, '<', $path) or die "Can't open '$item': $!";
+	#binmode($fh);
+	#$filehash{$item}{md5} = Digest::MD5->new->addfile($fh)->hexdigest;
 	
 	#Print the information to a file. (You'll get duplicates)
 	#foreach my $file (sort keys %filehash) {
@@ -243,46 +236,45 @@ sub hashin{
 ## Returns: None.
 sub printdate{
 	local $together = $_[0];
+	local $togethercopy = $together;
+	if ($windows){
+		#remove the \'s in the folder path to make it look pretty
+		#$togethercopy =~ s/\\//g;
+		#then proceed to flip all the /'s in the path to \ like windows uses
+		$togethercopy =~ s/\//\\/g;
+	}
 	if (-f "$together"){
-		($atime,$mtime,$ctime)=(stat($together))[8..10];
+		#~ ($atime,$mtime,$ctime)=(stat($together))[8..10];
 		if (!$logfile){
-			print "Filename: " . $item . "\n";
-			print "Access: " . ctime($atime) . "\t";
-			print "Modified: " . ctime($mtime) . "\t";
-			print "Created: " . ctime($ctime) . "\n";
+			print "Filename: " . $togethercopy . "\n";
+			print "Access: " . ctime($filehash{$together}{atime}) . "\n";
+			print "Modified: " . ctime($filehash{$together}{mtime}) . "\n";
+			print "Created: " . ctime($filehash{$together}{ctime}) . "\n\n";
 		}
 		else{
-			print OUTFILE "Filename: " . $item . "\n";
-			print OUTFILE "Access: " . ctime($atime) . "\t";
-			print OUTFILE "Modified: " . ctime($mtime) . "\t";
-			print OUTFILE "Created: " . ctime($ctime) . "\n";
+			print OUTFILE "Filename: " . $togethercopy . "\n";
+			print OUTFILE "Access: " . ctime($filehash{$together}{atime}) . "\n";
+			print OUTFILE "Modified: " . ctime($filehash{$together}{mtime}) . "\n";
+			print OUTFILE "Created: " . ctime($filehash{$together}{ctime}) . "\n\n";
 		}
 	}
 		
 	#however if it is a directory get the mac times and then loop through that directory
 	if (-d "$together"){
-		#since the dontuse variable is blank if linux it will just get the mac times and go one level deeper
+		#since the dontuse variable is blank in linux it will just get the mac times and go one level deeper
 		if ($dontuse !~ /$together\n/){
-			#to make the output look pretty
-			local $togethercopy = $together;
-			#remove the \'s in the folder path to make it look pretty
-			$togethercopy =~ s/\\//g;
-			#then proceed to flip all the /'s in the path to \ like windows uses
-			if ($windows){
-				$togethercopy =~ s/\//\\/g;
-			}
-			($atime,$mtime,$ctime)=(stat($together))[8..10];
+			#~ ($atime,$mtime,$ctime)=(stat($together))[8..10];
 			if (!$logfile){
-				print "Foldername: " . $togethercopy . "\n";
-				print "Access: " . ctime($atime) . "\t";
-				print "Modified: " . ctime($mtime) . "\t";
-				print "Created: " . ctime($ctime) . "\n";
+				print "Filename: " . $togethercopy . "\n";
+				print "Access: " . ctime($filehash{$together}{atime}) . "\n";
+				print "Modified: " . ctime($filehash{$together}{mtime}) . "\n";
+				print "Created: " . ctime($filehash{$together}{ctime}) . "\n\n";
 			}
 			else{
-				print OUTFILE "Foldername: " . $togethercopy . "\n";
-				print OUTFILE "Access: " . ctime($atime) . "\t";
-				print OUTFILE "Modified: " . ctime($mtime) . "\t";
-				print OUTFILE "Created: " . ctime($ctime) . "\n";
+				print OUTFILE "Filename: " . $togethercopy . "\n";
+				print OUTFILE "Access: " . ctime($filehash{$together}{atime}) . "\n";
+				print OUTFILE "Modified: " . ctime($filehash{$together}{mtime}) . "\n";
+				print OUTFILE "Created: " . ctime($filehash{$together}{ctime}) . "\n\n";
 			}
 				
 			if ($linux){
@@ -331,7 +323,7 @@ sub searchdate{
 ## Purpose: 
 ## Returns: 
 sub cmpdate{
-	local $startdir = $_[0];
+	local $startingdir = $_[0];
 	local $stype = $_[1];
 	local $timefrom = $_[2];
 	local $timeto = $_[3];
