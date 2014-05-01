@@ -1,4 +1,0 @@
-Filename: company info.rtf
-Access: Tue Feb 11 00:47:06 2014	Modified: Tue Feb 11 01:12:55 2014	Created: Tue Feb 11 00:47:06 2014
-Filename: download captures.pcapng
-Access: Sat Mar  8 17:07:04 2014	Modified: Sat Mar  8 17:07:06 2014	Created: Sat Mar  8 17:07:04 2014
