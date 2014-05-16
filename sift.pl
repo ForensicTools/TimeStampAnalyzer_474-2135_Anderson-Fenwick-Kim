@@ -168,8 +168,12 @@ sub printdata{
 }
 
 sub printhelp{
-	print "HELP!\n";
+	print "\nUsage: sift.pl <-i path> [[-i path] [-i path] ...] [-start date] [-end date] [[-sort option]|[-count]]\n";
+	print "\nOptions:\n";
+	print "\t-i path\t\t Indicates the input files made by get.pl Multiple -i allowed.\n";
+	print "\t-start date\t Specify a start date.\n";
+	print "\t-end date\t Specify an end date.\n";
+	print "\t-sort option\t Choose to sort by option: ctime, mtime, or atime.\n";
+	print "\t-count\t\t Counts how many times each time appears. Overrides -sort.\n";
 	exit;
-	#~ print "\t-s type\tType of date to search.\n";
-	#~ print "\t\t<acc> = Access time,\n\t\t<mod> = Modified time,\n\t\t<cre> = Created time\n";
 }
