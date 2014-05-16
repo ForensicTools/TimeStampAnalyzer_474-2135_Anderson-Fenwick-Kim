@@ -3,10 +3,9 @@
 
 #Modules
 use Time::localtime;
-use Time::Local;
+#~ use Time::Local;
 use Getopt::Long;
 use Storable;
-#~ use DateTime;
 
 #Argument Variables
 my @datafileslist;
@@ -127,7 +126,7 @@ sub datetimesearch{
 }
 
 sub printdata{
-	if (count){
+	if ($count){
 		local %hashoftimes;
 		foreach my $filenamekey (@sortedkeys){
 			if (exists $hashoftimes{$gianthash{$filenamekey}{'atime'}}){
