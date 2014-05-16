@@ -1,10 +1,4 @@
 #!/usr/bin/perl -w
-#use strict;
-
-=TODO
-allow for following symlinks in linux
-
-=cut
 
 #Modules
 use Time::localtime;
@@ -22,12 +16,11 @@ my $help = "";
 GetOptions(
 	"i=s" => \$startdir,		# -i option, directory path.
 	"o=s" => \$datafile,		# -o option, output filename.
-	#~ "s=s" => \$searchstring,	# -s option, search type.
 	"help|h|?" => \$help,		# -help or -h or -?, help message.
 );
 
 #ARG VALIDATION
-#Must have a startdir
+#Must have a startdir and a file to output to
 (!$startdir or !$datafile or $help) ? &printhelp() : ();
 
 #Global Variables
@@ -50,12 +43,16 @@ if ($^O eq "MSWin32"){
 
 $linux = ($^O eq "linux") ? "yes" : "";
 
+my $startdircopy = $startdir;
+
+($windows) ? $startdircopy =~ s/\//\\/g : ();
+
 #get the info from the starting folder right away
 ($atime,$mtime,$ctime)=(stat($startdir))[8..10];
 		
-$filehash{$startdir}{atime} = $atime;
-$filehash{$startdir}{mtime} = $mtime;
-$filehash{$startdir}{ctime} = $ctime;
+$filehash{$startdircopy}{atime} = $atime;
+$filehash{$startdircopy}{mtime} = $mtime;
+$filehash{$startdircopy}{ctime} = $ctime;
 
 #now get information from inside the folder
 &loopdir($startdir);

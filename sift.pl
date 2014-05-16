@@ -3,127 +3,177 @@
 
 #Modules
 use Time::localtime;
-use Time::Local;
+#~ use Time::Local;
 use Getopt::Long;
 use Storable;
 
 #Argument Variables
 my @datafileslist;
 my $help = "";
-my $searchstring = "";
-#~ my $mactime = "";
+my $sortbystring = "";
+my $startstring = "";
+my $endstring = "";
 
 GetOptions(
 	"i=s" => \@datafileslist,	# -i options, hash dumps to look at can be more than one
-	"s=s" => \$searchstring,	# -s option, search type.
-	#~ "mactime|m" => $mactime,	# -mactime or -m, make output input for mactime?
+	"start=s" => \$startstring,	# -start, starting date
+	"end=s" => \$endstring,		# -end, ending date
+	"sort=s" => \$sortbystring,	# -sort output for a timeline of atime,mtime,ctime
+	"count" => \$count,		# count up all atime,mtime,ctime stuff
 	"help|h|?" => \$help,		# -help or -h or -?, help message.
 );
 
 #check args for at minimum one datafile
-(!$datafileslist[0] or $help) ? &printhelp() : ();
+(!$datafileslist[0] or $sortbystring !~ /^(atime|mtime|ctime|)$/ or ((scalar(split(/[.\-\/: ]/,$startstring)) != 6) and $startstring ne "") or ((scalar(split(/[.\-\/: ]/,$endstring)) != 6) and $endstring ne "") or $help) ? &printhelp() : ();
+
 
 #Global Vars
-#~ my %accesshash;
-#~ my %modifiedhash;
-#~ my %createdhash;
-
-
-my @filehashes;
-
-my $counter = scalar(@datafileslist);
+my @sortedkeys;
+my %gianthash;
 my $hashref;
+
 
 foreach my $filename(@datafileslist){
 	$hashref = retrieve($filename);
-	push @filehashes, $hashref;
-}
-
-#&searchdate() stuff should go here
-#will change what is below
-
-#~ if ($stype eq "acc"){
-	#~ if ($timefrom <= $atime && $timeto >= $atime){
-		#~ &printdate($together);
-	#~ }
-#~ }
-
-#~ if ($stype eq "mod"){
-	#~ if ($timefrom <= $mtime && $timeto >= $mtime){
-		#~ &printdate($together);
-	#~ }
-#~ }
-
-#~ if ($stype eq "cre"){
-	#~ if ($timefrom <= $ctime && $timeto >= $ctime){
-		#~ &printdate($together);
-	#~ }
-#~ }
-
-#Check if the Time specified already has a hash.
-#~ if (exists $accesshash{$atime}){
-	#~ #If it does, add one to the count.
-	#~ $accesshash{$atime}++;
-#~ }
-#~ else {
-	#~ #If it doesn't, add it the hash with a count of 1.
-	#~ %accesshash = (%accesshash, $atime, 1);
-#~ }
-
-############
-
-#~ if (exists $modifiedhash{$mtime}){
-	#~ $modifiedhash{$mtime}++;
-#~ }
-#~ else {
-	#~ %modifiedhash = (%modifiedhash, $mtime, 1);
-#~ }
-
-#~ if (exists $createdhash{$ctime}){
-	#~ $createdhash{$ctime}++;
-#~ }
-#~ else {
-	#~ %createdhash = (%createdhash, $ctime, 1);
-#~ }
-
-
-
-foreach my $hashref(@filehashes){
 	foreach my $filenamekey (keys %$hashref){
-		print "Filename: " . $filenamekey . "\n";
-		print "Accessed: " . ctime($hashref->{$filenamekey}{'atime'}) . "\n";
-		print "Modified: " . ctime($hashref->{$filenamekey}{'mtime'}) . "\n";
-		print "Changed: " . ctime($hashref->{$filenamekey}{'ctime'}) . "\n\n";
+		$gianthash{join('|',$filename,$filenamekey)}{atime} = $hashref->{$filenamekey}{'atime'};
+		$gianthash{join('|',$filename,$filenamekey)}{mtime} = $hashref->{$filenamekey}{'mtime'};
+		$gianthash{join('|',$filename,$filenamekey)}{ctime} = $hashref->{$filenamekey}{'ctime'};
 	}
 }
 
+&sorthashes();
+&datetimesearch();
+&printdata();
 ###########################
 ######  end of main  ######
 ###########################
 
-sub printhelp{
-	print "HELP!\n";
-	exit;
-	#~ print "\t-s type\tType of date to search.\n";
-	#~ print "\t\t<acc> = Access time,\n\t\t<mod> = Modified time,\n\t\t<cre> = Created time\n";
+sub sorthashes{
+	if ($sortbystring =~ /atime/){
+		@sortedkeys = sort { $gianthash{$a}{'atime'} <=> $gianthash{$b}{'atime'}} keys %gianthash;
+	}
+	elsif($sortbystring =~ /mtime/){
+		@sortedkeys = sort { $gianthash{$a}{'mtime'} <=> $gianthash{$b}{'mtime'}} keys %gianthash;
+	}
+	elsif($sortbystring =~ /ctime/){
+		@sortedkeys = sort { $gianthash{$a}{'ctime'} <=> $gianthash{$b}{'ctime'}} keys %gianthash;
+	}
+	else{
+		@sortedkeys = keys %gianthash;
+	}
 }
 
-## Name: searchdate
-## Purpose:
-## Returns: $timefrom, $timeto
-sub searchdate{
-	print "<Format: Day.Month.Year Hour:Minute:Seconds> (e.g. 20.12.2010 13:50:25)\n";
-	print "Enter a staring time for search range:";
-	$argsearchfrom = <STDIN>;
-	chomp($argsearchfrom);
-	my ($mday,$mon,$year,$hour,$min,$sec) = split(/[\s.:]+/, $argsearchfrom);
-	my $timefrom = timelocal($sec,$min,$hour,$mday,$mon-1,$year);
+sub datetimesearch{
+	local $startdate = $startstring;
+	local $enddate = $endstring;
+	
+	local @timearray;
+	local $startepoch;
+	local $endepoch;
+	
+	if($startdate){
+		@timearray = split(/[.\-\/: ]/,$startdate);
+		$startepoch = timelocal($timearray[5],$timearray[4],$timearray[3],$timearray[1],$timearray[0]-1,$timearray[2]);
+	}
+	if($enddate){
+		@timearray = split(/[.\-\/: ]/,$enddate);
+		$endepoch = timelocal($timearray[5],$timearray[4],$timearray[3],$timearray[1],$timearray[0]-1,$timearray[2]);
+	}
+	
+	local @intimekeys;
+	local $key;
+	
+	foreach $key (@sortedkeys){
+		if ($startepoch and !$endepoch){
+			if ( $gianthash{$key}{'atime'} >= $startepoch ){
+				push(@intimekeys,$key);
+			}
+			elsif ( $gianthash{$key}{'mtime'} >= $startepoch ){
+				push(@intimekeys,$key);
+			}
+			elsif ( $gianthash{$key}{'ctime'} >= $startepoch ){
+				push(@intimekeys,$key);
+			}
+		}
+		elsif (!$startepoch and $endepoch){
+			if ( $gianthash{$key}{'atime'} <= $endepoch ){
+				push(@intimekeys,$key);
+			}
+			elsif ( $gianthash{$key}{'mtime'} <= $endepoch ){
+				push(@intimekeys,$key);
+			}
+			elsif ( $gianthash{$key}{'ctime'} <= $endepoch ){
+				push(@intimekeys,$key);
+			}			
+		}
+		elsif ($startepoch and $endepoch){
+			if ($gianthash{$key}{'atime'} >= $startepoch and $gianthash{$key}{'atime'} <= $endepoch){
+				push(@intimekeys,$key);
+			}
+			elsif ($gianthash{$key}{'mtime'} >= $startepoch and $gianthash{$key}{'mtime'} <= $endepoch){
+				push(@intimekeys,$key);
+			}
+			elsif ($gianthash{$key}{'ctime'} >= $startepoch and $gianthash{$key}{'ctime'} <= $endepoch){
+				push(@intimekeys,$key);
+			}	
+		}
+		else{
+			@intimekeys = @sortedkeys;
+		}
+	}
+	@sortedkeys = @intimekeys;
+}
 
-	print "Enter a ending time for search range:";
-	$argsearchto = <STDIN>;
-	chomp($argsearchto);
-	($mday,$mon,$year,$hour,$min,$sec) = split(/[\s.:]+/, $argsearchto);
-	my $timeto = timelocal($sec,$min,$hour,$mday,$mon-1,$year);
+sub printdata{
+	if ($count){
+		local %hashoftimes;
+		foreach my $filenamekey (@sortedkeys){
+			if (exists $hashoftimes{$gianthash{$filenamekey}{'atime'}}){
+				$hashoftimes{$gianthash{$filenamekey}{'atime'}}++;
+			}
+			else{
+				$hashoftimes{$gianthash{$filenamekey}{'atime'}} = 1;
+			}
+			if (exists $hashoftimes{$gianthash{$filenamekey}{'mtime'}}){
+				$hashoftimes{$gianthash{$filenamekey}{'mtime'}}++;
+			}
+			else{
+				$hashoftimes{$gianthash{$filenamekey}{'mtime'}} = 1;
+			}
+			if (exists $hashoftimes{$gianthash{$filenamekey}{'ctime'}}){
+				$hashoftimes{$gianthash{$filenamekey}{'ctime'}}++;
+			}
+			else{
+				$hashoftimes{$gianthash{$filenamekey}{'ctime'}} = 1;
+			}
+		}
+		local @sortedtimekeys = sort { $a <=> $b} keys %hashoftimes;
+		foreach my $timekey (@sortedtimekeys){
+			print "Time: " . ctime($timekey) . "\n";
+			print "Occurances: " . $hashoftimes{$timekey} . "\n\n";
+		}
+	}
+	else{
+		foreach my $filenamekey (@sortedkeys){
+			if (exists $gianthash{$filenamekey}){
+				print "Hashfile: " . (split(/\|/,$filenamekey))[0] . "\n";
+				print "Filename: " . (split(/\|/,$filenamekey))[1] . "\n";
+				print "Accessed: " . ctime($gianthash{$filenamekey}{'atime'}) . "\n";
+				print "Modified: " . ctime($gianthash{$filenamekey}{'mtime'}) . "\n";
+				print "Changed:  " . ctime($gianthash{$filenamekey}{'ctime'}) . "\n\n";
+			}
+		}
+	}
+}
 
-	return ($timefrom, $timeto);
+sub printhelp{
+	print "\nUsage: sift.pl <-i path> [[-i path] [-i path] ...] [-start date] [-end date] [[-sort option]|[-count]]\n";
+	print "\nOptions:\n";
+	print "\t-i path\t\t Indicates the input files made by get.pl Multiple -i allowed.\n";
+	print "\t-start date\t Specify a start date.\n";
+	print "\t-end date\t Specify an end date.\n";
+	print "\t-sort option\t Choose to sort by option: ctime, mtime, or atime.\n";
+	print "\t-count\t\t Counts how many times each time appears. Overrides -sort.\n";
+	exit;
 }
